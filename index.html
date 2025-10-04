@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solar System Explorer — PRO (APIs)</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background: radial-gradient(100% 100% at 50% 0%, #0a0e1a 0%, #06070e 50%, #02030a 100%); color:#e6ecff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #overlay { position: fixed; top: 12px; left: 12px; background: rgba(16,20,40,.72); border: 1px solid rgba(120,140,255,.2); border-radius: 12px; padding: 12px; z-index: 10; width: 400px; backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(0,0,0,.25); max-height: 95vh; overflow: auto;}
+    #overlay h1 { margin: 0 0 8px; font-size: 16px; letter-spacing: .2px; }
+    #overlay .hint { font-size: 11px; color: #b8c2ff; margin-bottom: 10px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    label { font-size: 12px; color: #c8d0ff; }
+    input[type='range'], input[type='text'], input[type='date'], input[type='number'] { width: 100%; }
+    .pill { display:inline-block; padding:4px 8px; border-radius: 999px; background:#151b38; border:1px solid #2a3470; font-size:11px; margin-right:6px; }
+    .btn { background:#2a45ff; color:#fff; border:none; padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:600; }
+    .btn.ghost { background:transparent; border:1px solid #3a4bff; color:#cdd4ff; }
+    .section { border-top:1px solid rgba(120,140,255,.2); margin-top:10px; padding-top:10px;}
+    .small { font-size:11px; color:#aab3ff; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(0,0,0,.35); border:1px solid rgba(120,140,255,.25); border-radius: 8px; padding:6px; max-height: 120px; overflow:auto; }
+    #help { position: fixed; right: 12px; top: 12px; z-index:10; background: rgba(16,20,40,.72); border: 1px solid rgba(120,140,255,.2); border-radius: 12px; padding: 10px; width: 260px; font-size: 12px; backdrop-filter: blur(6px); }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="overlay">
+    <h1>Solar System Explorer — PRO</h1>
+    <div class="hint">Orbit: drag • Zoom: wheel • Fly: <span class="pill">WASD</span> + <span class="pill">R/F</span> • Time slider animates orbits.</div>
+    <div class="row">
+      <div>
+        <label>Time (days from J2000)</label>
+        <input id="tSlider" type="range" min="-365250" max="365250" value="0" step="1" />
+      </div>
+      <div>
+        <label>Rate (× real time)</label>
+        <input id="rate" type="range" min="0" max="2000" value="365" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label><input id="play" type="checkbox" checked/> Play</label><br/>
+        <label><input id="showOrbits" type="checkbox" checked/> Orbits</label><br/>
+        <label><input id="labels" type="checkbox" checked/> Labels</label><br/>
+        <label><input id="realtime" type="checkbox"/> Real-time (UTC)</label>
+      </div>
+      <div>
+        <button class="btn" id="focusSun">Focus Sun</button>
+        <button class="btn ghost" id="focusEarth">Focus Earth</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>Field of View</label>
+        <input id="fov" type="range" min="20" max="90" value="55"/>
+      </div>
+      <div>
+        <label>Stars</label>
+        <input id="stars" type="range" min="1000" max="20000" value="8000"/>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Live NEOs (NeoWs + SBDB)</h3>
+      <div class="row">
+        <div>
+          <label>NASA API Key</label>
+          <input id="nasaKey" type="text" placeholder="DEMO_KEY"/>
+        </div>
+        <div>
+          <label>Start date</label>
+          <input id="neoStart" type="date"/>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>End date</label>
+          <input id="neoEnd" type="date"/>
+        </div>
+        <div>
+          <label>SBDB Designation</label>
+          <input id="sbdbDes" type="text" placeholder="e.g., 433 Eros or 2024 MK"/>
+        </div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="loadNeoFeed">Load NeoWs feed</button>
+        <button class="btn ghost" id="addSbdb">Add SBDB object</button>
+      </div>
+      <div class="small">Tip: Feed gives close approaches; SBDB fetch adds a specific object with osculating elements.</div>
+      <div id="neoLog" class="log" style="margin-top:6px"></div>
+    </div>
+
+    <div class="section">
+      <h3>Fireballs (CNEOS)</h3>
+      <div class="row">
+        <div>
+          <label>Since (YYYY-MM-DD)</label>
+          <input id="fbSince" type="date"/>
+        </div>
+        <div>
+          <label>Require location</label>
+          <select id="fbLoc"><option value="true">Yes</option><option value="false">No</option></select>
+        </div>
+      </div>
+      <div style="margin-top:6px">
+        <button class="btn" id="loadFireballs">Load fireballs</button>
+      </div>
+      <div id="fbLog" class="log" style="margin-top:6px"></div>
+    </div>
+
+    <div class="section">
+      <h3>Earth Impact Analysis (EPQS + WorldPop + OSM)</h3>
+      <div class="row">
+        <div><label>Lat (°)</label><input id="impLat" type="number" step="0.01" value="19.5"/></div>
+        <div><label>Lon (°)</label><input id="impLon" type="number" step="0.01" value="-99.1"/></div>
+      </div>
+      <div class="row">
+        <div><label>Radius (km)</label><input id="impRad" type="number" step="0.1" value="10"/></div>
+        <div><label>WorldPop Year</label><input id="wpYear" type="number" step="1" value="2020"/></div>
+      </div>
+      <div class="row">
+        <div><label>WorldPop API Key (optional)</label><input id="wpKey" type="text" placeholder="for large polygons"/></div>
+        <div><label>OSM Query: hospitals</label><input id="osmAmenity" type="text" value="hospital"/></div>
+      </div>
+      <div style="margin-top:6px">
+        <button class="btn" id="analyzeImpact">Analyze</button>
+      </div>
+      <div id="impactLog" class="log" style="margin-top:6px"></div>
+      <div class="small">Note: Some APIs may require a backend proxy for CORS in production.</div>
+    </div>
+
+  </div>
+  <div id="help">Shortcuts: <b>space</b> pause • <b>1–8</b> focus planets • <b>H</b> toggle this panel.</div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
